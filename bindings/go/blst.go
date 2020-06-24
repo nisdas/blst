@@ -16,6 +16,7 @@ import "C"
 import (
 	"fmt"
 	"runtime"
+	"sync"
 	"sync/atomic"
 )
 
@@ -315,19 +316,28 @@ func coreAggregateVerifyPkInG1(sigFn sigGetterP2, pkFn pkGetterP1,
 		useHash = optional[0]
 	}
 	var pairings Pairing
+	m := new(sync.Mutex)
+	wg := new(sync.WaitGroup)
 	for i := uint32(0); i < uint32(n); i++ {
-		pairing := PairingCtx()
-		var temp P1Affine
-		curPk, aug := pkFn(i, &temp)
-		PairingAggregatePkInG1(pairing, curPk, nil,
-			useHash, msgs[i], dst, aug)
-		PairingCommit(pairing)
-		if pairings == nil {
-			pairings = pairing
-		} else {
-			PairingMerge(pairings, pairing)
-		}
+		wg.Add(1)
+		go func() {
+			pairing := PairingCtx()
+			var temp P1Affine
+			curPk, aug := pkFn(i, &temp)
+			PairingAggregatePkInG1(pairing, curPk, nil,
+				useHash, msgs[i], dst, aug)
+			PairingCommit(pairing)
+			m.Lock()
+			if pairings == nil {
+				pairings = pairing
+			} else {
+				PairingMerge(pairings, pairing)
+			}
+			m.Unlock()
+			wg.Done()
+		}()
 	}
+	wg.Wait()
 
 	// Uncompress and check signature
 	var gtsig Fp12
