@@ -320,12 +320,12 @@ func coreAggregateVerifyPkInG1(sigFn sigGetterP2, pkFn pkGetterP1,
 	wg := new(sync.WaitGroup)
 	for i := uint32(0); i < uint32(n); i++ {
 		wg.Add(1)
-		go func() {
+		go func(index uint32) {
 			pairing := PairingCtx()
 			var temp P1Affine
-			curPk, aug := pkFn(i, &temp)
+			curPk, aug := pkFn(index, &temp)
 			PairingAggregatePkInG1(pairing, curPk, nil,
-				useHash, msgs[i], dst, aug)
+				useHash, msgs[index], dst, aug)
 			PairingCommit(pairing)
 			m.Lock()
 			if pairings == nil {
@@ -335,7 +335,7 @@ func coreAggregateVerifyPkInG1(sigFn sigGetterP2, pkFn pkGetterP1,
 			}
 			m.Unlock()
 			wg.Done()
-		}()
+		}(i)
 	}
 	wg.Wait()
 
